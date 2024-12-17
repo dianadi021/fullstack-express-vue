@@ -1,0 +1,36 @@
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  DOCKER_DRIVER: overlay2
+
+before_script:
+  - docker info
+
+build:
+  stage: build
+  script:
+    - docker-compose -f docker-compose.yml build
+    - docker build -t registry.example.com/my-app:latest ./expressjs
+    - docker push registry.example.com/my-app:latest
+
+test:
+  stage: test
+  script:
+    - docker-compose -f docker-compose.yml up -d
+    - docker-compose -f docker-compose.yml exec expressjs npm test
+    - docker-compose -f docker-compose.yml exec vuejs npm run test
+  after_script:
+    - docker-compose -f docker-compose.yml down
+
+deploy:
+  stage: deploy
+  only:
+    - main
+  script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - docker-compose -f docker-compose.yml push
+    - docker pull registry.example.com/my-app:latest
+    - docker-compose up -d --force-recreate
